@@ -149,3 +149,13 @@ func codecParametersAssociatedSearch(needle RTPCodecParameters, haystack []RTPCo
 
 	return RTPCodecParameters{}, codecMatchNone
 }
+
+// Do a search by mime type in the list of codecs
+func codecParametersSearchByMimeType(mimeType string, haystack []RTPCodecParameters) (codecs []RTPCodecParameters) {
+	for i, c := range haystack {
+		if c.MimeType == mimeType {
+			codecs = append(codecs, haystack[i])
+		}
+	}
+	return codecs
+}
