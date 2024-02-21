@@ -32,6 +32,11 @@ type trackEncoding struct {
 	rtxSrtpStream      *srtpWriterFuture
 	rtxRtcpInterceptor interceptor.RTCPReader
 	rtxStreamInfo      interceptor.StreamInfo
+
+	fecSsrc            SSRC
+	fecSrtpStream      *srtpWriterFuture
+	fecRtcpInterceptor interceptor.RTCPReader
+	fecStreamInfo      interceptor.StreamInfo
 }
 
 // RTPSender allows an application to control how a given Track is encoded and transmitted to a remote peer
@@ -128,6 +133,7 @@ func (r *RTPSender) getParameters() RTPSendParameters {
 				SSRC:        trackEncoding.ssrc,
 				PayloadType: r.payloadType,
 				RTX:         RTPRtxParameters{SSRC: trackEncoding.rtxSsrc},
+				FEC:         RTPFecParameters{SSRC: trackEncoding.fecSsrc},
 			},
 		})
 	}
@@ -214,6 +220,13 @@ func (r *RTPSender) addEncoding(track TrackLocal) {
 				trackEncoding.rtxSsrc = SSRC(randutil.NewMathRandomGenerator().Uint32())
 				break
 			}
+		}
+	}
+
+	if r.api.settingEngine.trackLocalFlexfec {
+		codecs := r.api.mediaEngine.getCodecsByKind(track.Kind())
+		if len(codecParametersSearchByMimeType(MimeTypeFlexFEC03, codecs)) > 0 {
+			trackEncoding.fecSsrc = SSRC(randutil.NewMathRandomGenerator().Uint32())
 		}
 	}
 
@@ -312,6 +325,7 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 		trackEncoding := r.trackEncodings[idx]
 		srtpStream := &srtpWriterFuture{ssrc: parameters.Encodings[idx].SSRC, rtpSender: r}
 		writeStream := &interceptorToTrackLocalWriter{}
+		fecCodecs := codecParametersSearchByMimeType(MimeTypeFlexFEC03, r.api.mediaEngine.getCodecsByKind(r.kind))
 
 		trackEncoding.srtpStream = srtpStream
 		trackEncoding.ssrc = parameters.Encodings[idx].SSRC
@@ -336,6 +350,10 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 			codec.RTPCodecCapability,
 			parameters.HeaderExtensions,
 		)
+
+		if len(fecCodecs) > 0 {
+			trackEncoding.streamInfo.Attributes.Set("flexfec-03", struct{}{})
+		}
 
 		trackEncoding.rtcpInterceptor = r.api.interceptor.BindRTCPReader(
 			interceptor.RTCPReaderFunc(func(in []byte, a interceptor.Attributes) (n int, attributes interceptor.Attributes, err error) {
@@ -381,6 +399,39 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 				&trackEncoding.rtxStreamInfo,
 				interceptor.RTPWriterFunc(func(header *rtp.Header, payload []byte, attributes interceptor.Attributes) (int, error) {
 					return rtxSrtpStream.WriteRTP(header, payload)
+
+				}),
+			)
+		}
+
+		if len(fecCodecs) > 0 &&
+			parameters.Encodings[idx].FEC.SSRC != 0 {
+
+			fecSrtpStream := &srtpWriterFuture{ssrc: parameters.Encodings[idx].FEC.SSRC, rtpSender: r}
+
+			trackEncoding.fecSrtpStream = fecSrtpStream
+			trackEncoding.fecSsrc = parameters.Encodings[idx].FEC.SSRC
+
+			trackEncoding.fecStreamInfo = *createStreamInfo(
+				r.id+"_fec",
+				parameters.Encodings[idx].FEC.SSRC,
+				fecCodecs[0].PayloadType,
+				fecCodecs[0].RTPCodecCapability,
+				parameters.HeaderExtensions,
+			)
+			trackEncoding.fecStreamInfo.Attributes.Set("apt_ssrc", uint32(parameters.Encodings[idx].SSRC))
+
+			trackEncoding.fecRtcpInterceptor = r.api.interceptor.BindRTCPReader(
+				interceptor.RTCPReaderFunc(func(in []byte, a interceptor.Attributes) (n int, attributes interceptor.Attributes, err error) {
+					n, err = trackEncoding.fecSrtpStream.Read(in)
+					return n, a, err
+				}),
+			)
+
+			r.api.interceptor.BindLocalStream(
+				&trackEncoding.fecStreamInfo,
+				interceptor.RTPWriterFunc(func(header *rtp.Header, payload []byte, attributes interceptor.Attributes) (int, error) {
+					return fecSrtpStream.WriteRTP(header, payload)
 				}),
 			)
 		}
@@ -465,6 +516,36 @@ func (r *RTPSender) ReadRtx(b []byte) (n int, a interceptor.Attributes, err erro
 func (r *RTPSender) ReadRtxRTCP() ([]rtcp.Packet, interceptor.Attributes, error) {
 	b := make([]byte, r.api.settingEngine.getReceiveMTU())
 	i, attributes, err := r.ReadRtx(b)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pkts, err := rtcp.Unmarshal(b[:i])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return pkts, attributes, nil
+}
+
+// ReadFec reads incoming FEC Stream RTCP for this RTPSender
+func (r *RTPSender) ReadFec(b []byte) (n int, a interceptor.Attributes, err error) {
+	if r.trackEncodings[0].fecRtcpInterceptor == nil {
+		return 0, nil, io.ErrNoProgress
+	}
+
+	select {
+	case <-r.sendCalled:
+		return r.trackEncodings[0].fecRtcpInterceptor.Read(b, a)
+	case <-r.stopCalled:
+		return 0, nil, io.ErrClosedPipe
+	}
+}
+
+// ReadFecRTCP is a convenience method that wraps ReadFec and unmarshals for you.
+func (r *RTPSender) ReadFecRTCP() ([]rtcp.Packet, interceptor.Attributes, error) {
+	b := make([]byte, r.api.settingEngine.getReceiveMTU())
+	i, attributes, err := r.ReadFec(b)
 	if err != nil {
 		return nil, nil, err
 	}

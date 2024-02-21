@@ -47,6 +47,9 @@ const (
 	// MimeTypePCMA PCMA MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypePCMA = "audio/PCMA"
+	// MimeTypeFlexFEC03 FlexFEC03 MIME type
+	// Note: Matching should be case insensitive.
+	MimeTypeFlexFEC03 = "video/flexfec-03"
 )
 
 type mediaEngineHeaderExtension struct {
