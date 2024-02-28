@@ -54,6 +54,7 @@ type SettingEngine struct {
 		UsernameFragment         string
 		Password                 string
 		IncludeLoopbackCandidate bool
+		ICEProtocolPolicy        ICEProtocolPolicy
 	}
 	replayProtection struct {
 		DTLS  *uint
@@ -448,4 +449,9 @@ func (e *SettingEngine) SetTrackLocalRtx(enable bool) {
 // SetTrackLocalFlexfec allows track local use FlexFEC.
 func (e *SettingEngine) SetTrackLocalFlexfec(enable bool) {
 	e.trackLocalFlexfec = enable
+}
+
+// SetICEProtocolPolicy allows change ice candidate priority.
+func (e *SettingEngine) SetICEProtocolPolicy(policy ICEProtocolPolicy) {
+	e.candidates.ICEProtocolPolicy = policy
 }

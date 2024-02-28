@@ -341,20 +341,15 @@ func addDataMediaSection(d *sdp.SessionDescription, shouldAddCandidates bool, dt
 	return nil
 }
 
-func populateLocalCandidates(sessionDescription *SessionDescription, i *ICEGatherer, iceGatheringState ICEGatheringState) *SessionDescription {
-	if sessionDescription == nil || i == nil {
-		return sessionDescription
-	}
-
-	candidates, err := i.GetLocalCandidates()
-	if err != nil {
+func populateLocalCandidates(sessionDescription *SessionDescription, candidates []ICECandidate, iceGatheringState ICEGatheringState) *SessionDescription {
+	if sessionDescription == nil {
 		return sessionDescription
 	}
 
 	parsed := sessionDescription.parsed
 	if len(parsed.MediaDescriptions) > 0 {
 		m := parsed.MediaDescriptions[0]
-		if err = addCandidatesToMediaDescriptions(candidates, m, iceGatheringState); err != nil {
+		if err := addCandidatesToMediaDescriptions(candidates, m, iceGatheringState); err != nil {
 			return sessionDescription
 		}
 	}

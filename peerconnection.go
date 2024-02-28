@@ -2133,10 +2133,10 @@ func (pc *PeerConnection) addRTPTransceiver(t *RTPTransceiver) {
 func (pc *PeerConnection) CurrentLocalDescription() *SessionDescription {
 	pc.mu.Lock()
 	localDescription := pc.currentLocalDescription
-	iceGather := pc.iceGatherer
 	iceGatheringState := pc.ICEGatheringState()
+	candidates, _ := pc.getLocalCandidates()
 	pc.mu.Unlock()
-	return populateLocalCandidates(localDescription, iceGather, iceGatheringState)
+	return populateLocalCandidates(localDescription, candidates, iceGatheringState)
 }
 
 // PendingLocalDescription represents a local description that is in the
@@ -2146,10 +2146,10 @@ func (pc *PeerConnection) CurrentLocalDescription() *SessionDescription {
 func (pc *PeerConnection) PendingLocalDescription() *SessionDescription {
 	pc.mu.Lock()
 	localDescription := pc.pendingLocalDescription
-	iceGather := pc.iceGatherer
 	iceGatheringState := pc.ICEGatheringState()
+	candidates, _ := pc.getLocalCandidates()
 	pc.mu.Unlock()
-	return populateLocalCandidates(localDescription, iceGather, iceGatheringState)
+	return populateLocalCandidates(localDescription, candidates, iceGatheringState)
 }
 
 // CurrentRemoteDescription represents the last remote description that was
@@ -2332,7 +2332,7 @@ func (pc *PeerConnection) generateUnmatchedSDP(transceivers []*RTPTransceiver, u
 		return nil, err
 	}
 
-	candidates, err := pc.iceGatherer.GetLocalCandidates()
+	candidates, err := pc.getLocalCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -2404,7 +2404,7 @@ func (pc *PeerConnection) generateMatchedSDP(transceivers []*RTPTransceiver, use
 		return nil, err
 	}
 
-	candidates, err := pc.iceGatherer.GetLocalCandidates()
+	candidates, err := pc.getLocalCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -2524,6 +2524,34 @@ func (pc *PeerConnection) generateMatchedSDP(transceivers []*RTPTransceiver, use
 
 func (pc *PeerConnection) setGatherCompleteHandler(handler func()) {
 	pc.iceGatherer.onGatheringCompleteHandler.Store(handler)
+}
+
+func (pc *PeerConnection) getLocalCandidates() ([]ICECandidate, error) {
+	candidates, err := pc.iceGatherer.GetLocalCandidates()
+	if err != nil {
+		return nil, err
+	}
+
+	switch pc.api.settingEngine.candidates.ICEProtocolPolicy {
+	case ICEProtocolPolicyPreferTCP:
+		tcpCandidatesCount := 0
+		for _, c := range candidates {
+			if c.Protocol == ICEProtocolTCP {
+				tcpCandidatesCount += 1
+			}
+		}
+		if tcpCandidatesCount > 0 && tcpCandidatesCount < len(candidates) {
+			tcpCandidates := []ICECandidate{}
+			for _, c := range candidates {
+				if c.Protocol == ICEProtocolTCP {
+					tcpCandidates = append(tcpCandidates, c)
+				}
+			}
+			return tcpCandidates, nil
+		}
+	}
+
+	return candidates, nil
 }
 
 // SCTP returns the SCTPTransport for this PeerConnection
