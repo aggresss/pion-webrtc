@@ -48,3 +48,17 @@ func (t ICEProtocol) String() string {
 		return ErrUnknownType.Error()
 	}
 }
+
+// ICEProtocolPolicy represents the type of protocol policy
+type ICEProtocolPolicy int
+
+const (
+	// NetworkTypePolicyUnknown is the enum's zero-value
+	ICEProtocolPolicyUnknown ICEProtocolPolicy = iota
+
+	// NetworkTypePolicyPreferUDP indecates prefer UDP.
+	ICEProtocolPolicyPreferUDP
+
+	// NetworkTypePolicyPreferUDP indecates prefer TCP.
+	ICEProtocolPolicyPreferTCP
+)
