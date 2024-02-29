@@ -392,9 +392,15 @@ func addSenderSDP(
 			if encoding.RTX.SSRC != 0 {
 				media = media.WithValueAttribute(sdp.AttrKeySSRCGroup, fmt.Sprintf("FID %d %d", encoding.SSRC, encoding.RTX.SSRC))
 			}
+			if encoding.FEC.SSRC != 0 {
+				media = media.WithValueAttribute(sdp.AttrKeySSRCGroup, fmt.Sprintf("FEC-FR %d %d", encoding.SSRC, encoding.FEC.SSRC))
+			}
 			media = media.WithMediaSource(uint32(encoding.SSRC), track.StreamID() /* cname */, track.StreamID() /* streamLabel */, track.ID())
 			if encoding.RTX.SSRC != 0 {
 				media = media.WithMediaSource(uint32(encoding.RTX.SSRC), track.StreamID() /* cname */, track.StreamID() /* streamLabel */, track.ID())
+			}
+			if encoding.FEC.SSRC != 0 {
+				media = media.WithMediaSource(uint32(encoding.FEC.SSRC), track.StreamID() /* cname */, track.StreamID() /* streamLabel */, track.ID())
 			}
 			if !isPlanB {
 				media = media.WithPropertyAttribute("msid:" + track.StreamID() + " " + track.ID())

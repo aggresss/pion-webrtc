@@ -92,6 +92,7 @@ type SettingEngine struct {
 	srtpProtectionProfiles                    []dtls.SRTPProtectionProfile
 	receiveMTU                                uint
 	trackLocalRtx                             bool
+	trackLocalFlexfec                         bool
 }
 
 // getReceiveMTU returns the configured MTU. If SettingEngine's MTU is configured to 0 it returns the default
@@ -439,4 +440,9 @@ func (e *SettingEngine) SetSCTPMaxReceiveBufferSize(maxReceiveBufferSize uint32)
 // SetTrackLocalRtx allows track local use RTX.
 func (e *SettingEngine) SetTrackLocalRtx(enable bool) {
 	e.trackLocalRtx = enable
+}
+
+// SetTrackLocalFlexfec allows track local use FlexFEC.
+func (e *SettingEngine) SetTrackLocalFlexfec(enable bool) {
+	e.trackLocalFlexfec = enable
 }
