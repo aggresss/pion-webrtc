@@ -4,6 +4,8 @@
 package webrtc
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/pion/webrtc/v3/internal/fmtp"
@@ -115,6 +117,28 @@ func codecParametersFuzzySearch(needle RTPCodecParameters, haystack []RTPCodecPa
 	// Fallback to just MimeType
 	for _, c := range haystack {
 		if strings.EqualFold(c.RTPCodecCapability.MimeType, needle.RTPCodecCapability.MimeType) {
+			return c, codecMatchPartial
+		}
+	}
+
+	return RTPCodecParameters{}, codecMatchNone
+}
+
+// Do a fuzzy find for a associated codec in the list of codecs
+// Used for lookup up a associated codec in an existing list to find a match
+// Returns codecMatchExact, codecMatchPartial, or codecMatchNone
+func codecParametersAssociatedSearch(needle RTPCodecParameters, haystack []RTPCodecParameters) (RTPCodecParameters, codecMatchType) {
+	// First attempt to match Exact
+	for _, c := range haystack {
+		if c.SDPFmtpLine == fmt.Sprintf("apt=%d", needle.PayloadType) {
+			return c, codecMatchExact
+		}
+	}
+
+	// Fallback to just has apt codec
+	re := regexp.MustCompile(`^apt=\d+$`)
+	for _, c := range haystack {
+		if re.MatchString(c.SDPFmtpLine) {
 			return c, codecMatchPartial
 		}
 	}

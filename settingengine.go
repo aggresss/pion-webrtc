@@ -91,6 +91,7 @@ type SettingEngine struct {
 	disableMediaEngineCopy                    bool
 	srtpProtectionProfiles                    []dtls.SRTPProtectionProfile
 	receiveMTU                                uint
+	trackLocalRtx                             bool
 }
 
 // getReceiveMTU returns the configured MTU. If SettingEngine's MTU is configured to 0 it returns the default
@@ -433,4 +434,9 @@ func (e *SettingEngine) SetDTLSKeyLogWriter(writer io.Writer) {
 // Leave this 0 for the default maxReceiveBufferSize.
 func (e *SettingEngine) SetSCTPMaxReceiveBufferSize(maxReceiveBufferSize uint32) {
 	e.sctp.maxReceiveBufferSize = maxReceiveBufferSize
+}
+
+// SetTrackLocalRtx allows track local use RTX.
+func (e *SettingEngine) SetTrackLocalRtx(enable bool) {
+	e.trackLocalRtx = enable
 }
