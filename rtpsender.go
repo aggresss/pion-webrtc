@@ -357,6 +357,12 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 			parameters.HeaderExtensions,
 		)
 
+		if codec.MimeType == MimeTypeOpus {
+			if codecs := r.api.mediaEngine.getCodecsByKind(r.kind); len(codecs) > 0 && codecs[0].MimeType == MimeTypeRed {
+				trackEncoding.streamInfo.Attributes.Set("red_pt", uint8(codecs[0].PayloadType))
+			}
+		}
+
 		if len(fecCodecs) > 0 {
 			trackEncoding.streamInfo.Attributes.Set("flexfec-03", struct{}{})
 		}

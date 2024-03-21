@@ -24,6 +24,16 @@ type FMTP interface {
 
 // Parse parses an fmtp string based on the MimeType
 func Parse(mimetype, line string) FMTP {
+	if strings.EqualFold(mimetype, "audio/red") {
+		parameters := []string{}
+		for _, p := range strings.Split(line, "/") {
+			parameters = append(parameters, strings.TrimSpace(p))
+		}
+		return &redFMTP{
+			parameters: parameters,
+		}
+	}
+
 	var f FMTP
 
 	parameters := make(map[string]string)

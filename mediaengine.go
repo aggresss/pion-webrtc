@@ -50,6 +50,9 @@ const (
 	// MimeTypeFlexFEC03 FlexFEC03 MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeFlexFEC03 = "video/flexfec-03"
+	// MimeTypeRed Red MIME type
+	// Note: Matching should be case insensitive.
+	MimeTypeRed = "audio/red"
 )
 
 type mediaEngineHeaderExtension struct {
@@ -404,7 +407,7 @@ func (m *MediaEngine) collectStats(collector *statsReportCollector) {
 }
 
 // Look up a codec and enable if it exists
-func (m *MediaEngine) matchRemoteCodec(remoteCodec RTPCodecParameters, typ RTPCodecType, exactMatches, partialMatches []RTPCodecParameters) (codecMatchType, error) {
+func (m *MediaEngine) matchRemoteCodec(remoteCodec RTPCodecParameters, remoteCodecs []RTPCodecParameters, typ RTPCodecType, exactMatches, partialMatches []RTPCodecParameters) (codecMatchType, error) {
 	codecs := m.videoCodecs
 	if typ == RTPCodecTypeAudio {
 		codecs = m.audioCodecs
@@ -453,6 +456,28 @@ func (m *MediaEngine) matchRemoteCodec(remoteCodec RTPCodecParameters, typ RTPCo
 			matchType = codecMatchPartial
 		}
 		return matchType, nil
+	}
+
+	if remoteFmtp.MimeType() == MimeTypeRed {
+		redAptMatch := codecMatchNone
+		for _, codec := range remoteCodecs {
+			if codec.MimeType == MimeTypeOpus {
+				if _, ok := remoteFmtp.Parameter(strconv.Itoa(int(codec.PayloadType))); ok {
+					_, redAptMatch = codecParametersFuzzySearch(codec, codecs)
+					break
+				}
+			}
+		}
+
+		if redAptMatch == codecMatchNone {
+			return codecMatchNone, nil
+		}
+
+		if _, matchType := codecParametersFuzzySearch(remoteCodec, codecs); matchType != codecMatchNone {
+			return redAptMatch, nil
+		}
+
+		return codecMatchNone, nil
 	}
 
 	_, matchType := codecParametersFuzzySearch(remoteCodec, codecs)
@@ -522,7 +547,7 @@ func (m *MediaEngine) updateFromRemoteDescription(desc sdp.SessionDescription) e
 		partialMatches := make([]RTPCodecParameters, 0, len(codecs))
 
 		for _, codec := range codecs {
-			matchType, mErr := m.matchRemoteCodec(codec, typ, exactMatches, partialMatches)
+			matchType, mErr := m.matchRemoteCodec(codec, codecs, typ, exactMatches, partialMatches)
 			if mErr != nil {
 				return mErr
 			}
